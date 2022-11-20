@@ -1,4 +1,5 @@
 #include "hilbert.h"
+#include "gmshfrac.h"
 #include "gloptMP.h"
 #include <iomanip>
 #include <iostream>
@@ -14,8 +15,12 @@
 #include <unistd.h>
 #include <immintrin.h>
 
+//#define INMOST_3PHASE
+
+#ifdef INMOST_3PHASE
 #include "/home/nikitink/Work/filter-project/INMOST/Source/Headers/inmost.h"
 #include "/home/nikitink/Work/filter-project/threephase/multiphase.h"
+#endif
 
 // #define DEBUG_PRINT
 
@@ -89,8 +94,27 @@ double F3 (double *X, int ndim)
 	return X[0] * X[0] + X[1] * X[1] - cos (20 * (X[0] + X[1]));
 }
 
+#ifdef INMOST_3PHASE
 double F4 (double *X, int ndim)
 {
+	static int numgrd = 0;
+	if (ndim != 4)
+	{
+		std::cout << "This test requires dim = 4" << std::endl;
+		exit (1);
+	}
+	
+	if (sqrt ((X[0] - X[2]) * (X[0] - X[2]) + (X[1] - X[3]) * (X[1] - X[3])) < 0.0625)
+		return 1e+5;
+		
+	std::stringstream fname;
+	fname << "frac-" << numgrd++ << ".vtk";
+	
+	int ncells = gmshFracGrid (X, fname.str().c_str());
+	addFracMaterial (ncells, fname.str().c_str());
+	remove ("frac.vtk");
+	symlink (fname.str().c_str(), "frac.vtk");
+	
 	mesh_params mparams;
 	linear_solver_params lparams;
 	nonlinear_solver_params nparams;
@@ -112,9 +136,13 @@ double F4 (double *X, int ndim)
 		aut.EnumerateEntries();
 		tparams.SolveTime(model, nparams, lparams, mparams);
 		std::cout << "Production oil " << mmodel.getOilProd() << " water " << mmodel.getWaterProd() << " gas " << mmodel.getGasProd() << std::endl;
+		
+		mparams.mesh->Save(fname.str().c_str());
 	}
+	
 	return 0;
 }
+#endif
 
 double Func (HilbertCurve *hc, double x)
 {
@@ -124,8 +152,9 @@ double Func (HilbertCurve *hc, double x)
 	hc->Double2DoubleAxes (Y, x, 1, 1);
 	
 	// return F1 (Y, ndim);
-	return F2 (Y, ndim);
+	// return F2 (Y, ndim);
 	// return F3 (Y, ndim);
+	return F4 (Y, ndim);
 }
 
 int main(int argc, char **argv)

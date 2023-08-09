@@ -16,11 +16,18 @@
 #include <immintrin.h>
 
 //#define INMOST_3PHASE
+#define VIRTUAL_SUTURER
 
 #ifdef INMOST_3PHASE
 #include "/home/nikitink/Work/filter-project/INMOST/Source/Headers/inmost.h"
 #include "/home/nikitink/Work/filter-project/threephase/multiphase.h"
 #endif
+
+#ifdef VIRTUAL_SUTURER
+#include "oneleaf.h"
+#endif
+
+std::ofstream STATS;
 
 // #define DEBUG_PRINT
 
@@ -88,10 +95,13 @@ double F2 (double *X, int ndim)
 
 double F3 (double *X, int ndim)
 {
-	if (ndim != 2)
-		return 0;
+	double sum = ndim;
+	for (int i = 0; i < ndim; i++)
+	{
+		sum -= X[i];
+	}
 	
-	return X[0] * X[0] + X[1] * X[1] - cos (20 * (X[0] + X[1]));
+	return sum;
 }
 
 #ifdef INMOST_3PHASE
@@ -144,6 +154,77 @@ double F4 (double *X, int ndim)
 }
 #endif
 
+// double D in [9, 34], start D = 19
+// double H in [5, 25], start H = 11 
+// double H_f in [-H/2, 6], start H_f = 2
+#ifdef VIRTUAL_SUTURER
+double F5 (double *X, int ndim)
+{
+	if (ndim < 2 || ndim > 3)
+		return 0;
+	double bbox[2 * ndim], sum = 0.0;
+	bbox[0] = 10, bbox[1] = 33;
+	bbox[2] = 6, bbox[3] = 24;
+	if (ndim == 3)
+		bbox[4] = 2, bbox[5] = 6;
+	
+    SimplifiedTemplateGeometry g;
+    g.D = bbox[0] + X[0] * (bbox[1] - bbox[0]), 
+	g.H = bbox[2] + X[1] * (bbox[3] - bbox[2]), 
+	g.H_f = 2.0;
+	if (ndim == 3)
+		g.H_f = bbox[4] + X[2] * (bbox[5] - bbox[4]);
+	char *argv[] = {""};
+	
+	auto res = performOneLeafSimulation(g, TestConstantParameters(), 1, argv);	
+	EvaluatedValues EVres = *reinterpret_cast<EvaluatedValues*>(&res);
+	std::cout << EVres << std::endl;
+	STATS << EVres << std::endl;
+	
+	// Functional: [10, 6]  -> 4e+6
+	//             [19, 11] -> 3e+3
+	//             [33, 24] -> 6e+6
+	sum = (EVres.form_closed_valve        ? 1.0 : (exp (EVres.closure_degree))) *
+		  (EVres.central_coaptation > 1.5 ? (1.0 + EVres.central_coaptation - 1.5) : exp (1.5 - EVres.central_coaptation)) *
+		  (EVres.effective_height < 9.0   ? exp (9.0 - EVres.effective_height) : 
+										    (EVres.effective_height > 11.0 ? exp (EVres.effective_height - 11.0) : 1.0)) *
+		  (EVres.length_coaptation > 6.0  ? (1.0 + EVres.length_coaptation - 6.0) : exp (6.0 - EVres.length_coaptation)) *
+		  (EVres.billowing < 1.4          ? 1.0 + 1.4 - EVres.billowing : exp (EVres.billowing - 1.4));
+		  
+	std::cout << "Multipliers: " <<
+		  (EVres.form_closed_valve        ? 1.0 : (exp (EVres.closure_degree))) << " * " <<
+		  (EVres.central_coaptation > 1.5 ? (1.0 + EVres.central_coaptation - 1.5) : exp (1.5 - EVres.central_coaptation)) << " * " <<
+		  (EVres.effective_height < 9.0   ? exp (9.0 - EVres.effective_height) : 
+										    (EVres.effective_height > 11.0 ? exp (EVres.effective_height - 11.0) : 1.0)) << " * " <<
+		  (EVres.length_coaptation > 6.0  ? (1.0 + EVres.length_coaptation - 6.0) : exp (6.0 - EVres.length_coaptation)) << " * " <<
+		  (EVres.billowing < 1.4          ? 1.0 + 1.4 - EVres.billowing : exp (EVres.billowing - 1.4)) << std::endl;
+		  
+	STATS << "Multipliers: " <<
+		  (EVres.form_closed_valve        ? 1.0 : (exp (EVres.closure_degree))) << " * " <<
+		  (EVres.central_coaptation > 1.5 ? (1.0 + EVres.central_coaptation - 1.5) : exp (1.5 - EVres.central_coaptation)) << " * " <<
+		  (EVres.effective_height < 9.0   ? exp (9.0 - EVres.effective_height) : 
+										    (EVres.effective_height > 11.0 ? exp (EVres.effective_height - 11.0) : 1.0)) << " * " <<
+		  (EVres.length_coaptation > 6.0  ? (1.0 + EVres.length_coaptation - 6.0) : exp (6.0 - EVres.length_coaptation)) << " * " <<
+		  (EVres.billowing < 1.4          ? 1.0 + 1.4 - EVres.billowing : exp (EVres.billowing - 1.4)) << std::endl;
+		  
+	if (isnan(sum) || sum > 1e+6)
+		sum = 1e+6;
+		  
+	std::cout << "Input: D = " << g.D << ", H = " << g.H << ", H_f = " << g.H_f << ", Functional = " << sum << std::endl << std::endl;
+	STATS << "Input: D = " << g.D << ", H = " << g.H << ", H_f = " << g.H_f << ", Functional = " << sum << std::endl << std::endl;
+	
+	// EVres.form_closed_valve; = true
+	// EVres.closure_degree; > 0
+	// EVres.central_coaptation; > 1.5
+	// EVres.effective_height; in [9, 11]
+	// EVres.length_coaptation; > 6
+	// EVres.billowing; < 1.4
+	// EVres.coaptation_area; // -> 0
+	
+	return sum;
+}
+#endif
+
 double Func (HilbertCurve *hc, double x)
 {
 	int ndim = hc->ndim;
@@ -154,7 +235,7 @@ double Func (HilbertCurve *hc, double x)
 	// return F1 (Y, ndim);
 	// return F2 (Y, ndim);
 	// return F3 (Y, ndim);
-	return F4 (Y, ndim);
+	return F5 (Y, ndim);
 }
 
 int main(int argc, char **argv)
@@ -208,6 +289,10 @@ int main(int argc, char **argv)
 		}
     }
 	
+	// std::ofstream fs;
+	// fs.open ("points_over_time");
+	STATS.open ("statistics.csv");
+	
 	GloptMP *opt = new GloptMP (ndim, nbits, nproc, niter, rel, eps_equal);
 	
 	double *xN_min = new double[ndim];
@@ -220,7 +305,7 @@ int main(int argc, char **argv)
 	}
 	
 	omp_set_num_threads (nproc);
-	#pragma omp parallel for
+// 	#pragma omp parallel for
 	for (int i = 0; i < nvmax; ++i)
 		opt->TrialPoints[i].second = Func (opt->hc, opt->TrialPoints[i].first);
 	
@@ -230,9 +315,6 @@ int main(int argc, char **argv)
 			std::cout << x.first << " / " << x.second << ", ";
 		std::cout << std::endl;
 #endif
-	
-	std::ofstream fs;
-	fs.open ("points_over_time");
 		
 	// Step 1: Renumber
 	// Using simple sort() function to sort
@@ -261,19 +343,22 @@ int main(int argc, char **argv)
 		for (int i = 1; i < nvmax; ++i)
 		{
 			R = 0;
-			dx = (opt->TrialPoints[i].first - opt->TrialPoints[i - 1].first);
-			if (dx > eps_equal)
-			{
-				dx = pow (dx, 1.0 / ndim);
-				dz = (opt->TrialPoints[i].second - opt->TrialPoints[i - 1].second);
-				R = dx + dz * dz / (M * M * dx) - 2.0 * (opt->TrialPoints[i].second + opt->TrialPoints[i - 1].second) / M;
-			}
+			dx = pow (opt->TrialPoints[i].first - opt->TrialPoints[i - 1].first, 1.0 / ndim);
+			dz = (opt->TrialPoints[i].second - opt->TrialPoints[i - 1].second);
+			R = dx + dz * dz / (M * M * dx) - 2.0 * (opt->TrialPoints[i].second + opt->TrialPoints[i - 1].second) / M;
 			Chars.push_back (std::make_pair (R, i));
 		}
+		
+#ifdef DEBUG_PRINT
+		std::cout << "1. Chars:" << std::endl;
+		for (auto& x: Chars)
+			std::cout << x.first << " / " << x.second << ", ";
+		std::cout << std::endl;
+#endif
 		sort(Chars.begin(), Chars.end());
 		
 #ifdef DEBUG_PRINT
-		std::cout << "Chars:" << std::endl;
+		std::cout << "2. Chars:" << std::endl;
 		for (auto& x: Chars)
 			std::cout << x.first << " / " << x.second << ", ";
 		std::cout << std::endl;
@@ -324,7 +409,7 @@ int main(int argc, char **argv)
 		if (stop == 1)
 			break;
 		
-		#pragma omp parallel for
+// 		#pragma omp parallel for
 		for (int i = 0; i < Indices.size(); ++i)
 		{
 			NewPoints[i].second = Func (opt->hc, NewPoints[i].first);
@@ -347,16 +432,17 @@ int main(int argc, char **argv)
 		
 #ifdef DEBUG_PRINT
 		std::cout << "TrialPoints:" << std::endl;
-		for (auto& x: TrialPoints)
+		for (auto& x: opt->TrialPoints)
 			std::cout << x.first << " / " << x.second << ", ";
 		std::cout << std::endl;
 #endif
 		
-		for (int i = 0; i < nvmax; ++i)
-			fs << opt->TrialPoints[i].first << " " << (double)iiter / niter << " " << opt->TrialPoints[i].second << std::endl;
-		fs << std::endl;
+		// for (int i = 0; i < nvmax; ++i)
+		// 	fs << opt->TrialPoints[i].first << " " << (double)iiter / niter << " " << opt->TrialPoints[i].second << std::endl;
+		// fs << std::endl;
 	}
-	fs.close ();
+	// fs.close ();
+	STATS.close ();
 	
 	opt->hc->DrawHilbert (opt->TrialPoints, nvmax);
 	opt->hc->Double2DoubleAxes(xN_min, x_min, 1, 1);

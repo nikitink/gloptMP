@@ -107,7 +107,7 @@ void HilbertCurve::Double2DoubleAxes (double* X, double code, int scalein, int s
 	unsigned long long lcode;
 	
 	if (scalein == 1)
-		code *= (1 << ndim * nbits);
+		code *= ((1 << ndim * nbits) - 1);
 	
 	if (code < 0)
 	{
@@ -128,7 +128,7 @@ void HilbertCurve::Double2DoubleAxes (double* X, double code, int scalein, int s
 	
 	if (scaleout == 1)
 		for (int i = 0; i < ndim; ++i)
-			X[i] /= (1 << nbits); 
+			X[i] = (X[i] + 0.5) / (1 << nbits); 
 }
 
 void HilbertCurve::DrawHilbert (std::vector <std::pair <double,double>> TrialPoints, int nv)

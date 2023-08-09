@@ -4,8 +4,7 @@
 #include <iostream>
 #include "gmshfrac.h"
 
-int gmshFracGrid (double * xy, const char * fname)
-{
+int gmshFracGrid (double * xy, const char * fname) {
 	double beg[2] = {xy[0], xy[1]}, end[2] = {xy[2], xy[3]};
 	double length = sqrt ((beg[0] - end[0]) * (beg[0] - end[0]) + (beg[1] - end[1]) * (beg[1] - end[1]));
 
@@ -131,8 +130,7 @@ int gmshFracGrid (double * xy, const char * fname)
 	return ncells;
 }
 
-void addFracMaterial (int ncells, const char * fname)
-{
+void addFracMaterial (int ncells, const char * fname) {
 	std::ofstream fs;
 	fs.open (fname, std::ios_base::app);
 

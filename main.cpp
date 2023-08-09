@@ -15,9 +15,6 @@
 #include <unistd.h>
 #include <immintrin.h>
 
-//#define INMOST_3PHASE
-#define VIRTUAL_SUTURER
-
 #ifdef INMOST_3PHASE
 #include "/home/nikitink/Work/filter-project/INMOST/Source/Headers/inmost.h"
 #include "/home/nikitink/Work/filter-project/threephase/multiphase.h"
@@ -31,14 +28,12 @@ std::ofstream STATS;
 
 // #define DEBUG_PRINT
 
-bool CmpBySecond (std::pair<double, int> p1, std::pair<double, int> p2) 
-{ 
-    return p1.second < p2.second; 
+bool CmpBySecond (std::pair<double, int> p1, std::pair<double, int> p2) { 
+	return p1.second < p2.second; 
 } 
 
 template <typename T>
-void InsertMultiple (std::vector<T> & TrialPoints, std::vector<T> & NewPoints, std::vector<std::pair<double,int>> & Indices)
-{
+void InsertMultiple (std::vector<T> & TrialPoints, std::vector<T> & NewPoints, std::vector<std::pair<double,int>> & Indices) {
 	auto size = TrialPoints.size() + NewPoints.size();
 	auto tmp = std::vector<T>();
 	tmp.reserve(size);
@@ -46,16 +41,13 @@ void InsertMultiple (std::vector<T> & TrialPoints, std::vector<T> & NewPoints, s
 	auto v = std::size_t{0}; // index into TrialPoints
 	auto p = std::size_t{0}; // index into Indices / NewPoints
 
-	for (auto i = std::size_t{0}; i != size; ) // index into y
-	{
-		if (p < Indices.size () && v == Indices[p].second)
-		{
+	for (auto i = std::size_t{0}; i != size; ) { // index into y
+		if (p < Indices.size () && v == Indices[p].second) {
 			tmp.push_back(NewPoints[p]);
 			++p;
 			++i;
 		}
-		else
-		{
+		else {
 			tmp.push_back(TrialPoints[v]);
 			++v;
 			++i;
@@ -64,8 +56,7 @@ void InsertMultiple (std::vector<T> & TrialPoints, std::vector<T> & NewPoints, s
 	TrialPoints = tmp;
 }
 
-double F1 (double *X, int ndim)
-{
+double F1 (double *X, int ndim) {
 	if (ndim != 2)
 		return 0;
 	
@@ -77,8 +68,7 @@ double F1 (double *X, int ndim)
 }
 
 // Rosenbrock function
-double F2 (double *X, int ndim)
-{
+double F2 (double *X, int ndim) {
 	if (ndim < 2)
 		return 0;
 	double bbox[2 * ndim], Y[ndim], sum = 0.0;
@@ -93,23 +83,10 @@ double F2 (double *X, int ndim)
 	return sum;
 }
 
-double F3 (double *X, int ndim)
-{
-	double sum = ndim;
-	for (int i = 0; i < ndim; i++)
-	{
-		sum -= X[i];
-	}
-	
-	return sum;
-}
-
 #ifdef INMOST_3PHASE
-double F4 (double *X, int ndim)
-{
+double F3 (double *X, int ndim) {
 	static int numgrd = 0;
-	if (ndim != 4)
-	{
+	if (ndim != 4) {
 		std::cout << "This test requires dim = 4" << std::endl;
 		exit (1);
 	}
@@ -132,8 +109,7 @@ double F4 (double *X, int ndim)
 	Automatizator aut;
 	Model model(aut);
 	MultiphaseModel mmodel;
-	if (read_file("params.txt", mmodel, lparams, nparams, tparams, mparams))
-	{
+	if (read_file("params.txt", mmodel, lparams, nparams, tparams, mparams)) {
 		lparams.verbosity = 1;
 		nparams.verbosity = 1;
 		tparams.verbosity = 1;
@@ -158,8 +134,7 @@ double F4 (double *X, int ndim)
 // double H in [5, 25], start H = 11 
 // double H_f in [-H/2, 6], start H_f = 2
 #ifdef VIRTUAL_SUTURER
-double F5 (double *X, int ndim)
-{
+double F4 (double *X, int ndim) {
 	if (ndim < 2 || ndim > 3)
 		return 0;
 	double bbox[2 * ndim], sum = 0.0;
@@ -168,8 +143,8 @@ double F5 (double *X, int ndim)
 	if (ndim == 3)
 		bbox[4] = 2, bbox[5] = 6;
 	
-    SimplifiedTemplateGeometry g;
-    g.D = bbox[0] + X[0] * (bbox[1] - bbox[0]), 
+	SimplifiedTemplateGeometry g;
+	g.D = bbox[0] + X[0] * (bbox[1] - bbox[0]), 
 	g.H = bbox[2] + X[1] * (bbox[3] - bbox[2]), 
 	g.H_f = 2.0;
 	if (ndim == 3)
@@ -225,40 +200,38 @@ double F5 (double *X, int ndim)
 }
 #endif
 
-double Func (HilbertCurve *hc, double x)
-{
+double Func (HilbertCurve *hc, double x) {
 	int ndim = hc->ndim;
 	double Y[ndim];
 	
 	hc->Double2DoubleAxes (Y, x, 1, 1);
 	
 	// return F1 (Y, ndim);
-	// return F2 (Y, ndim);
+	return F2 (Y, ndim);
 	// return F3 (Y, ndim);
-	return F5 (Y, ndim);
+	// return F4 (Y, ndim);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
 	clock_t time_total = clock(), time_tmp;
-    
-	int ndim = 2, nvmax = 50, nbits = 5, nproc = 1, niter = 10;
+
+	int ndim = 2, nvmax = 100, nbits = 5, nproc = 4, niter = 100;
 	double rel = 1.1;
 	double eps_equal = 0.5 / RAND_MAX, eps_stop = 1e-2;
 	double x_min, f_min = 1e+12;
 	int iiter, stop = 0;
 	
 	int option_index = 0, c;
-    static const struct option opts[] = {
-        {"help",   no_argument,       0, 'H'},
-        {"ndim",   required_argument, 0, 'd'},
-        {"nvmax",  required_argument, 0, 'v'},
-        {"nbits",  required_argument, 0, 'b'},
-        {"niter",  required_argument, 0, 'i'},
-        {"nproc",  required_argument, 0, 'p'},
-        {"rel",    required_argument, 0, 'r'},
-        {"eps",    required_argument, 0, 'e'},
-    };
+	static const struct option opts[] = {
+		{"help",   no_argument,       0, 'H'},
+		{"ndim",   required_argument, 0, 'd'},
+		{"nvmax",  required_argument, 0, 'v'},
+		{"nbits",  required_argument, 0, 'b'},
+		{"niter",  required_argument, 0, 'i'},
+		{"nproc",  required_argument, 0, 'p'},
+		{"rel",    required_argument, 0, 'r'},
+		{"eps",    required_argument, 0, 'e'},
+	};
 	
 	std::ostringstream help;
 	help << "Usage: gloptMP [options]" << std::endl <<
@@ -271,13 +244,12 @@ int main(int argc, char **argv)
 			"-r REL,   --rel=REL      reliability parameter of the method (default = " << rel << ")" << std::endl <<
 			"-e EPS,   --eps=EPS      epsilon for the algorithm stop (default = " << eps_stop << ")" << std::endl;
 	
-	while (1)
-	{
+	while (1) {
 		c = getopt_long(argc, argv, "Hd:v:b:i:p:r:e:", opts, &option_index);
 		if (c == -1)
 			break;
-		switch (c) // here sscanf is used not to overwrite initial values in case of wrong input
-		{
+		// here sscanf is used not to overwrite initial values in case of wrong input
+		switch (c) {
 			case 'H': std::cout << help.str(); exit(1);
 			case 'd': sscanf(optarg, "%d", &ndim);  break;
 			case 'v': sscanf(optarg, "%d", &nvmax); break;
@@ -287,10 +259,7 @@ int main(int argc, char **argv)
 			case 'r': sscanf(optarg, "%lf", &rel);  break;
 			case 'e': sscanf(optarg, "%lf", &eps_stop);  break;
 		}
-    }
-	
-	// std::ofstream fs;
-	// fs.open ("points_over_time");
+	}
 	STATS.open ("statistics.csv");
 	
 	GloptMP *opt = new GloptMP (ndim, nbits, nproc, niter, rel, eps_equal);
@@ -298,10 +267,9 @@ int main(int argc, char **argv)
 	double *xN_min = new double[ndim];
 	
 	// Initialize points on [0, 1]
-	for (int i = 0; i < nvmax; ++i)
-	{
+	for (int i = 0; i < nvmax; ++i) {
 		double x = (double) i / (nvmax - 1);
-        opt->TrialPoints.push_back (std::make_pair (x, 0.0));
+		opt->TrialPoints.push_back (std::make_pair (x, 0.0));
 	}
 	
 	omp_set_num_threads (nproc);
@@ -320,16 +288,13 @@ int main(int argc, char **argv)
 	// Using simple sort() function to sort
 	sort (opt->TrialPoints.begin (), opt->TrialPoints.end ());
 	
-	for (iiter = 0; iiter < niter; ++iiter)
-	{
+	for (iiter = 0; iiter < niter; ++iiter) {
 		double mu = 0, mui, M, dx, dz, R, x;
 		
 		// Step 2: Calculate magnitudes
-		for (int i = 1; i < nvmax; ++i)
-		{
+		for (int i = 1; i < nvmax; ++i) {
 			dx = (opt->TrialPoints[i].first - opt->TrialPoints[i - 1].first);
-			if (dx > eps_equal)
-			{
+			if (dx > eps_equal) {
 				dz = (opt->TrialPoints[i].second - opt->TrialPoints[i - 1].second);
 				mui = fabs (dz) / pow (dx, 1.0 / ndim);
 				if (mui > mu)
@@ -340,8 +305,7 @@ int main(int argc, char **argv)
 		
 		std::vector <std::pair<double, int>> Chars;
 		// Step 3: Compute characteristics
-		for (int i = 1; i < nvmax; ++i)
-		{
+		for (int i = 1; i < nvmax; ++i) {
 			R = 0;
 			dx = pow (opt->TrialPoints[i].first - opt->TrialPoints[i - 1].first, 1.0 / ndim);
 			dz = (opt->TrialPoints[i].second - opt->TrialPoints[i - 1].second);
@@ -378,11 +342,9 @@ int main(int argc, char **argv)
 #endif
 		
 		std::vector <std::pair <double,double>> NewPoints;
-		for (int i = 0; i < Indices.size(); ++i)
-		{
+		for (int i = 0; i < Indices.size(); ++i) {
 			int iind = Indices[i].second;
-			if (iind > 1)
-			{
+			if (iind > 1) {
 				dz = (opt->TrialPoints[iind].second - opt->TrialPoints[iind - 1].second);
 				x = 0.5 * (opt->TrialPoints[iind - 1].first + opt->TrialPoints[iind].first) -
 					((dz > 0) ? 1 : -1) * pow (fabs (dz) / mu, ndim) / (2.0 * rel);
@@ -392,9 +354,7 @@ int main(int argc, char **argv)
 			NewPoints.push_back (std::make_pair (x, 0.0));
 			
 			dx = pow (opt->TrialPoints[iind].first - opt->TrialPoints[iind - 1].first, 1.0 / ndim);
-			// std::cout << "dx = " << dx << std::endl;
-			if (dx < eps_stop) // Convergence check
-			{
+			if (dx < eps_stop) { // Convergence check
 				stop = 1;
 				break;
 			}
@@ -410,11 +370,9 @@ int main(int argc, char **argv)
 			break;
 		
 // 		#pragma omp parallel for
-		for (int i = 0; i < Indices.size(); ++i)
-		{
+		for (int i = 0; i < Indices.size(); ++i) {
 			NewPoints[i].second = Func (opt->hc, NewPoints[i].first);
-			if (NewPoints[i].second < f_min)
-			{
+			if (NewPoints[i].second < f_min) {
 				x_min = NewPoints[i].first;
 				f_min = NewPoints[i].second;
 			}
@@ -436,12 +394,7 @@ int main(int argc, char **argv)
 			std::cout << x.first << " / " << x.second << ", ";
 		std::cout << std::endl;
 #endif
-		
-		// for (int i = 0; i < nvmax; ++i)
-		// 	fs << opt->TrialPoints[i].first << " " << (double)iiter / niter << " " << opt->TrialPoints[i].second << std::endl;
-		// fs << std::endl;
 	}
-	// fs.close ();
 	STATS.close ();
 	
 	opt->hc->DrawHilbert (opt->TrialPoints, nvmax);
@@ -461,5 +414,5 @@ int main(int argc, char **argv)
 	std::cout << "Total time = " << (double)time_total / CLOCKS_PER_SEC << std::endl;
 	delete opt;
 	
-    return 0;
+	return 0;
 }
